@@ -1,587 +1,1428 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
+
 <head>
-<meta charset="UTF-8">
-<title>推特封面图生成器 · X Cover Generator</title>
-<script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js"></script>
-<style>
-  :root{
-    --ui-bg:#0e0e0e; --ui-panel:#1a1a1a; --ui-border:#2a2a2a;
-    --ui-text:#e8e8e8; --ui-muted:#888; --ui-accent:#4a9d7f;
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{
-    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;
-    background:var(--ui-bg);color:var(--ui-text);min-height:100vh;padding:24px;
-  }
-  .wrap{max-width:1400px;margin:0 auto}
-  .topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:24px}
-  h1{font-size:20px;font-weight:500;margin-bottom:4px}
-  .sub{color:var(--ui-muted);font-size:13px}
-  .profile-link{
-    flex:0 0 auto;display:inline-flex;align-items:center;gap:8px;
-    color:#fff;background:var(--ui-accent);border:1px solid transparent;
-    padding:10px 14px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:500;
-  }
-  .profile-link:hover{opacity:.9}
-  .profile-link .mark{font-weight:800;font-size:14px;line-height:1}
-  .layout{display:grid;grid-template-columns:300px 300px 1fr;gap:20px}
-  @media (max-width:1200px){.layout{grid-template-columns:1fr 1fr;}.preview-wrap{grid-column:1/-1}}
-  @media (max-width:720px){.topbar{display:block}.profile-link{margin-top:12px}.layout{grid-template-columns:1fr}.preview-wrap{grid-column:auto}}
-  .panel-title{font-size:12px;color:var(--ui-muted);letter-spacing:.2em;text-transform:uppercase;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--ui-border)}
+  <meta charset="UTF-8">
+  <title>全媒体封面图生成器</title>
+  <script src="https://cdn.jsdelivr.net/npm/html-to-image@1.11.11/dist/html-to-image.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3/dist/jszip.min.js"></script>
+  <style>
+    :root {
+      --ui-bg: #0e0e0e;
+      --ui-panel: #1a1a1a;
+      --ui-border: #2a2a2a;
+      --ui-text: #e8e8e8;
+      --ui-muted: #888;
+      --ui-accent: #4a9d7f;
+    }
 
-  .panel{background:var(--ui-panel);border:1px solid var(--ui-border);border-radius:12px;padding:20px}
-  .field{margin-bottom:16px}
-  .field label{display:block;font-size:12px;color:var(--ui-muted);margin-bottom:6px;letter-spacing:.05em}
-  .field input,.field select,.field textarea{
-    width:100%;background:#121212;border:1px solid var(--ui-border);color:var(--ui-text);
-    padding:10px 12px;border-radius:8px;font-size:14px;font-family:inherit;
-  }
-  .field textarea{resize:vertical;min-height:60px}
-  .field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--ui-accent)}
-  .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-  .hint{font-size:11px;color:#666;margin-top:4px;line-height:1.5}
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0
+    }
 
-  button{
-    width:100%;background:var(--ui-accent);color:#fff;border:none;padding:12px;
-    border-radius:8px;font-size:14px;font-weight:500;cursor:pointer;margin-top:8px;
-  }
-  button:hover{opacity:.9}
-  button.sec{background:transparent;border:1px solid var(--ui-border);color:var(--ui-text)}
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Helvetica Neue", sans-serif;
+      background: var(--ui-bg);
+      color: var(--ui-text);
+      min-height: 100vh;
+      padding: 24px;
+    }
 
-  .preview-wrap{background:var(--ui-panel);border:1px solid var(--ui-border);border-radius:12px;padding:20px;overflow:auto}
-  .preview-meta{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;font-size:12px;color:var(--ui-muted)}
+    .wrap {
+      max-width: 1400px;
+      margin: 0 auto
+    }
 
-  /* ===== 封面图核心样式 ===== */
-  #cover{
-    width:2500px;height:1000px;position:relative;overflow:hidden;
-    transform-origin:top left;
-    font-family:"Noto Serif SC","Source Han Serif SC","Songti SC",serif;
-  }
-  #cover .bg-char{
-    position:absolute;right:-120px;top:50%;transform:translateY(-50%);
-    font-size:1000px;font-weight:900;line-height:.85;
-    opacity:.055;letter-spacing:-.05em;white-space:nowrap;pointer-events:none;
-    font-family:"Noto Serif SC","Source Han Serif SC","Songti SC",serif;
-  }
-  #cover .bg-grad{position:absolute;inset:0;pointer-events:none}
-  #cover .bg-pattern{position:absolute;inset:0;pointer-events:none;z-index:1}
-  #cover .content{position:relative;z-index:2;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;padding:0 120px;text-align:center}
-  #cover .tag{
-    font-family:-apple-system,"Helvetica Neue",sans-serif;
-    font-size:26px;letter-spacing:.5em;font-weight:400;margin-bottom:60px;text-transform:uppercase;
-  }
-  #cover .lead{
-    font-family:-apple-system,"PingFang SC","Helvetica Neue",sans-serif;
-    font-size:58px;font-weight:300;letter-spacing:.35em;margin-bottom:30px;
-  }
-  #cover .main{
-    font-size:160px;font-weight:900;line-height:1.1;letter-spacing:.02em;
-    font-family:"Noto Serif SC","Source Han Serif SC","Songti SC",serif;
-  }
-  #cover .main .hl{font-weight:900}
-  #cover .sign{
-    font-family:-apple-system,"Helvetica Neue",sans-serif;
-    font-size:38px;letter-spacing:.15em;margin-top:80px;font-weight:400;
-  }
-  #cover .sign .dot{margin:0 24px;font-size:26px;vertical-align:middle}
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 24px
+    }
 
-  .scale-host{background:#000;border-radius:8px;overflow:hidden;display:flex;justify-content:center}
-  .scale-inner{position:relative}
+    h1 {
+      font-size: 20px;
+      font-weight: 500;
+      margin-bottom: 4px
+    }
 
-  .palette-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px;max-height:280px;overflow-y:auto;padding-right:4px}
-  .swatch{aspect-ratio:5/2;border-radius:6px;cursor:pointer;position:relative;border:2px solid transparent;overflow:hidden}
-  .swatch.active{border-color:var(--ui-accent)}
-  .swatch .label{position:absolute;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);color:#fff;font-size:10px;padding:3px 4px;text-align:center}
-</style>
+    .sub {
+      color: var(--ui-muted);
+      font-size: 13px
+    }
+
+    .profile-link {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #fff;
+      background: var(--ui-accent);
+      border: 1px solid transparent;
+      padding: 10px 14px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .profile-link:hover {
+      opacity: .9
+    }
+
+    .agent-btn {
+      flex: 0 0 auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #fff;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border: 1px solid transparent;
+      padding: 10px 14px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      height: 40px;
+      box-sizing: border-box;
+      transition: opacity .15s;
+    }
+
+    .agent-btn:hover {
+      opacity: .9
+    }
+
+    .copy-toast {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #22c55e;
+      color: #fff;
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      z-index: 9999;
+      opacity: 0;
+      transition: opacity .3s;
+      pointer-events: none;
+    }
+
+    .copy-toast.show {
+      opacity: 1
+    }
+
+    .profile-link .mark {
+      font-weight: 800;
+      font-size: 14px;
+      line-height: 1
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 300px 300px 1fr;
+      gap: 20px
+    }
+
+    @media (max-width:1200px) {
+      .layout {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .preview-wrap {
+        grid-column: 1/-1
+      }
+    }
+
+    @media (max-width:720px) {
+      .topbar {
+        display: block
+      }
+
+      .profile-link {
+        margin-top: 12px
+      }
+
+      .layout {
+        grid-template-columns: 1fr
+      }
+
+      .preview-wrap {
+        grid-column: auto
+      }
+    }
+
+    .panel-title {
+      font-size: 12px;
+      color: var(--ui-muted);
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--ui-border)
+    }
+
+    .panel {
+      background: var(--ui-panel);
+      border: 1px solid var(--ui-border);
+      border-radius: 12px;
+      padding: 20px
+    }
+
+    .field {
+      margin-bottom: 16px
+    }
+
+    .field label {
+      display: block;
+      font-size: 12px;
+      color: var(--ui-muted);
+      margin-bottom: 6px;
+      letter-spacing: .05em
+    }
+
+    .field input,
+    .field select,
+    .field textarea {
+      width: 100%;
+      background: #121212;
+      border: 1px solid var(--ui-border);
+      color: var(--ui-text);
+      padding: 10px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    .field textarea {
+      resize: vertical;
+      min-height: 60px
+    }
+
+    .field input:focus,
+    .field select:focus,
+    .field textarea:focus {
+      outline: none;
+      border-color: var(--ui-accent)
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px
+    }
+
+    .hint {
+      font-size: 11px;
+      color: #666;
+      margin-top: 4px;
+      line-height: 1.5
+    }
+
+    button {
+      width: 100%;
+      background: var(--ui-accent);
+      color: #fff;
+      border: none;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+
+    button:hover {
+      opacity: .9
+    }
+
+    button.sec {
+      background: transparent;
+      border: 1px solid var(--ui-border);
+      color: var(--ui-text)
+    }
+
+    .preview-wrap {
+      background: var(--ui-panel);
+      border: 1px solid var(--ui-border);
+      border-radius: 12px;
+      padding: 20px;
+      overflow: auto
+    }
+
+    /* ===== 预览网格 ===== */
+    .preview-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+    }
+
+    .preview-card.full-row {
+      grid-column: 1/-1
+    }
+
+    .preview-card {
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: outline .15s;
+      position: relative;
+    }
+
+    .preview-card:hover {
+      outline: 2px solid var(--ui-accent)
+    }
+
+    .preview-card .card-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 10px;
+      background: rgba(0, 0, 0, .7);
+      color: #ccc;
+      font-size: 11px;
+    }
+
+    .preview-card .card-label .card-name {
+      font-weight: 500;
+      color: #fff
+    }
+
+    .preview-card .scale-host {
+      display: flex;
+      justify-content: center
+    }
+
+    .preview-card .scale-inner {
+      position: relative
+    }
+
+    /* ===== 封面图核心样式 ===== */
+    .cover {
+      position: relative;
+      overflow: hidden;
+      transform-origin: top left;
+      font-family: "Noto Serif SC", "Source Han Serif SC", "Songti SC", serif;
+    }
+
+    .cover .bg-char {
+      position: absolute;
+      right: -120px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1000px;
+      font-weight: 900;
+      line-height: .85;
+      opacity: .055;
+      letter-spacing: -.05em;
+      white-space: nowrap;
+      pointer-events: none;
+      font-family: "Noto Serif SC", "Source Han Serif SC", "Songti SC", serif;
+    }
+
+    .cover .bg-grad {
+      position: absolute;
+      inset: 0;
+      pointer-events: none
+    }
+
+    .cover .bg-pattern {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 1
+    }
+
+    .cover .content {
+      position: relative;
+      z-index: 2;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 0 120px;
+      text-align: center
+    }
+
+    .cover .tag {
+      font-family: -apple-system, "Helvetica Neue", sans-serif;
+      font-size: 26px;
+      letter-spacing: .5em;
+      font-weight: 400;
+      margin-bottom: 60px;
+      text-transform: uppercase;
+    }
+
+    .cover .lead {
+      font-family: -apple-system, "PingFang SC", "Helvetica Neue", sans-serif;
+      font-size: 58px;
+      font-weight: 300;
+      letter-spacing: .35em;
+      margin-bottom: 30px;
+    }
+
+    .cover .main {
+      font-size: 160px;
+      font-weight: 900;
+      line-height: 1.1;
+      letter-spacing: .02em;
+      font-family: "Noto Serif SC", "Source Han Serif SC", "Songti SC", serif;
+    }
+
+    .cover .main .hl {
+      font-weight: 900
+    }
+
+    .cover .sign {
+      font-family: -apple-system, "Helvetica Neue", sans-serif;
+      font-size: 38px;
+      letter-spacing: .15em;
+      margin-top: 80px;
+      font-weight: 400;
+    }
+
+    .cover .sign .dot {
+      margin: 0 24px;
+      font-size: 26px;
+      vertical-align: middle
+    }
+
+    .cover .content-left,
+    .cover .content-right {
+      position: absolute;
+      top: 0;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      overflow: hidden;
+    }
+
+    .cover .content-left {
+      left: 0
+    }
+
+    .cover .content-right {
+      right: 0
+    }
+
+    .cover .divider-line {
+      position: absolute;
+      top: 8%;
+      height: 84%;
+      z-index: 3;
+      pointer-events: none;
+      border-left: 2px dashed rgba(255, 255, 255, .12);
+    }
+
+    .palette-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      margin-top: 10px;
+      max-height: 280px;
+      overflow-y: auto;
+      padding-right: 4px
+    }
+
+    .swatch {
+      aspect-ratio: 5/2;
+      border-radius: 6px;
+      cursor: pointer;
+      position: relative;
+      border: 2px solid transparent;
+      overflow: hidden
+    }
+
+    .swatch.active {
+      border-color: var(--ui-accent)
+    }
+
+    .swatch .label {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, .6);
+      color: #fff;
+      font-size: 10px;
+      padding: 3px 4px;
+      text-align: center
+    }
+
+    .topbar-right {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      flex-shrink: 0
+    }
+
+    .style-panel {
+      background: var(--ui-panel);
+      border: 1px solid var(--ui-border);
+      border-radius: 12px;
+      padding: 14px;
+      min-width: 200px
+    }
+
+    .style-panel .panel-title {
+      margin-bottom: 10px;
+      padding-bottom: 8px
+    }
+
+    .style-panel .field {
+      margin-bottom: 10px
+    }
+
+    .style-panel .field:last-child {
+      margin-bottom: 0
+    }
+  </style>
 </head>
+
 <body>
-<div class="wrap">
-  <div class="topbar">
-    <div>
-      <h1>推特封面图生成器</h1>
-      <div class="sub">输入标题 → 选配色 → 导出 PNG（2500×1000，比例 5:2）</div>
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <h1>全媒体封面图生成器</h1>
+        <div class="sub">输入标题 → 选配色 → 点击预览卡片导出对应平台 PNG</div>
+      </div>
+      <div class="topbar-right" style="align-items:center">
+        <div class="style-panel"
+          style="padding:0;display:flex;align-items:center;gap:0;min-width:auto;height:40px;overflow:hidden">
+          <select id="style-list"
+            style="background:#121212;border:1px solid var(--ui-border);border-right:none;color:var(--ui-text);padding:0 10px;border-radius:8px 0 0 8px;font-size:12px;font-family:inherit;height:100%;width:140px">
+            <option value="">已保存样式</option>
+          </select>
+          <button class="sec" type="button" onclick="loadSelectedStyle()"
+            style="margin:0;padding:0 10px;width:auto;font-size:12px;height:100%;border-radius:0;border-left:none;border-right:none">加载</button>
+          <button class="sec" type="button" onclick="deleteSelectedStyle()"
+            style="margin:0;padding:0 10px;width:auto;font-size:12px;height:100%;border-radius:0 8px 8px 0;border-left:none">删除</button>
+        </div>
+        <a class="agent-btn" href="javascript:void(0)" onclick="copyAgentPrompt()">
+          <span>🤖</span>
+          <span>Agent 安装</span>
+        </a>
+        <a class="profile-link" href="javascript:void(0)" onclick="exportAllZip()" style="cursor:pointer;height:40px">
+          <span>📦</span>
+          <span>导出 ZIP</span>
+        </a>
+        <a class="profile-link" href="https://x.com/wangdefou" target="_blank" rel="noopener noreferrer"
+          style="height:40px">
+          <span class="mark">X</span>
+          <span>访问 @wangdefou</span>
+        </a>
+        <a class="profile-link" href="https://x.com/intent/follow?screen_name=cnzhihao" target="_blank" rel="noopener noreferrer"
+          style="height:40px">
+          <span class="mark">X</span>
+          <span>访问 @cnzhihao</span>
+        </a>
+      </div>
     </div>
-    <a class="profile-link" href="https://x.com/wangdefou" target="_blank" rel="noopener noreferrer">
-      <span class="mark">X</span>
-      <span>访问 @wangdefou</span>
-    </a>
+
+    <div class="layout">
+      <!-- 第一列：文案设置 -->
+      <div class="panel">
+        <div class="panel-title">✏️ 文案设置</div>
+
+        <div class="field">
+          <label>顶部英文标签</label>
+          <input id="f-tag" value="DEFOUTALK">
+        </div>
+
+        <div class="field">
+          <label>引导句（小字细体）</label>
+          <input id="f-lead" value="我为什么要创建一个">
+        </div>
+
+        <div class="field">
+          <label>核心标题（主标题）</label>
+          <input id="f-main" value="文科生学`AI`的社群？">
+          <div class="hint">用 `` 包裹需要着色的文字，例：学如何`赚钱`？</div>
+          <div class="row" style="grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+            <button class="sec" type="button" onclick="randomHighlight()" style="margin:0;padding:8px">🎯 随机高亮</button>
+            <button class="sec" type="button" onclick="clearHighlight()" style="margin:0;padding:8px">↺ 清除高亮</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label>背景水印字</label>
+          <input id="f-watermark" value="" maxlength="3" placeholder="留空则使用高亮字首字">
+          <div class="row" style="grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+            <button class="sec" type="button" onclick="randomWatermark()" style="margin:0;padding:8px">🎯 随机水印</button>
+            <button class="sec" type="button" onclick="clearWatermark()" style="margin:0;padding:8px">↺ 跟随标题</button>
+          </div>
+          <div class="hint">留空：自动用高亮字第一个字；点随机：从标题汉字中抽 1 个</div>
+        </div>
+
+        <div class="field">
+          <label>署名</label>
+          <input id="f-sign" value="得否 · @wangdefou · 2026">
+        </div>
+      </div>
+
+      <!-- 第二列：样式设置 -->
+      <div class="panel">
+        <div class="panel-title">🎨 样式设置</div>
+
+        <div class="field">
+          <label>主字号（基准 2500px 宽）</label>
+          <input id="f-size" type="number" value="160" min="80" max="260">
+        </div>
+
+        <div class="field">
+          <label>高亮文字字体</label>
+          <select id="f-hl-font"></select>
+        </div>
+
+        <div class="field">
+          <label>背景花纹</label>
+          <select id="f-pattern">
+            <option value="auto" selected>🎨 自动匹配（跟随配色）</option>
+            <option value="none">无</option>
+            <option value="dots">细点网格</option>
+            <option value="grid">极细线网格</option>
+            <option value="diagonal">对角细线</option>
+            <option value="noise">颗粒噪点</option>
+            <option value="crosshatch">交叉斜线</option>
+            <option value="corners">四角装饰线</option>
+          </select>
+          <div class="row" style="grid-template-columns:auto 1fr;gap:8px;margin-top:8px;align-items:center">
+            <label style="font-size:12px;color:var(--ui-muted);margin:0">强度</label>
+            <input id="f-pattern-opacity" type="range" min="0" max="100" value="25">
+          </div>
+        </div>
+
+        <div class="field">
+          <label>配色方案（18 套）</label>
+          <select id="f-palette"></select>
+          <div class="palette-grid" id="palette-grid"></div>
+        </div>
+
+        <div class="row" style="margin-top:8px">
+          <button class="sec" onclick="randomPalette()" style="margin:0">🎲 随机配色</button>
+          <button class="sec" onclick="randomBackground()" style="margin:0">🎲 随机背景</button>
+        </div>
+        <button class="sec" onclick="saveStyleToLib()" style="margin-top:8px">💾 保存当前样式到样式库</button>
+      </div>
+
+      <!-- 第三列：预览网格 -->
+      <div class="preview-wrap">
+        <div class="panel-title">👁 效果预览 · 点击卡片导出 <span id="palette-name"
+            style="float:right;letter-spacing:0">墨绿经典</span></div>
+        <div class="preview-grid" id="preview-grid"></div>
+      </div>
+    </div>
   </div>
 
-  <div class="layout">
-    <!-- 第一列：文案设置 -->
-    <div class="panel">
-      <div class="panel-title">✏️ 文案设置</div>
+  <script>
+    // 18 套配色方案
+    const PALETTES = [
+      { id: 'ink-green', name: '墨绿经典', bg: '#1C1C1C', bg2: '#252525', text: '#EDE6D8', hl: '#2D5F4A', sub: '#8A8A8A', sign: '#4A6B60', tag: '#8A8A8A', watermark: '#FFFFFF', pattern: 'diagonal', patternOpacity: 35 },
+      { id: 'burgundy', name: '勃艮第酒红', bg: '#141414', bg2: '#1F1515', text: '#F0E8DA', hl: '#8B2635', sub: '#9A9A9A', sign: '#6B4A4E', tag: '#9A9A9A', watermark: '#FFFFFF', pattern: 'noise', patternOpacity: 40 },
+      { id: 'midnight-navy', name: '极夜藏青', bg: '#0F1A2E', bg2: '#162138', text: '#F5F5F0', hl: '#E8833A', sub: '#7A8599', sign: '#9FAAB8', tag: '#7A8599', watermark: '#FFFFFF', pattern: 'grid', patternOpacity: 38 },
+      { id: 'cream', name: '奶油米白', bg: '#E8E2D4', bg2: '#DED6C4', text: '#2B2416', hl: '#B8611D', sub: '#6B6358', sign: '#8B7F70', tag: '#6B6358', watermark: '#2B2416', pattern: 'diagonal', patternOpacity: 35 },
+      { id: 'midnight-purple', name: '午夜深紫', bg: '#1A1425', bg2: '#221B30', text: '#EDE4E0', hl: '#C9A27A', sub: '#7A6F85', sign: '#9A8FA5', tag: '#7A6F85', watermark: '#FFFFFF', pattern: 'dots', patternOpacity: 40 },
+      { id: 'forest', name: '森林墨绿', bg: '#1F2B24', bg2: '#28362E', text: '#EDE6CF', hl: '#C4A442', sub: '#7A8A7E', sign: '#9AAA9E', tag: '#7A8A7E', watermark: '#FFFFFF', pattern: 'crosshatch', patternOpacity: 32 },
+      { id: 'black-gold', name: '纯黑烫金', bg: '#0A0A0A', bg2: '#131313', text: '#F2EDE3', hl: '#B8924A', sub: '#6B6258', sign: '#8A7F70', tag: '#8B7F70', watermark: '#FFFFFF', pattern: 'corners', patternOpacity: 50 },
+      { id: 'mini-white', name: '极简素白', bg: '#F5F3EE', bg2: '#EBE8E0', text: '#1A1A1A', hl: '#C8292E', sub: '#888888', sign: '#AAAAAA', tag: '#888888', watermark: '#1A1A1A', pattern: 'corners', patternOpacity: 55 },
+      { id: 'morandi', name: '莫兰迪灰蓝', bg: '#2A3441', bg2: '#323D4C', text: '#E8DFD0', hl: '#D4A574', sub: '#8A92A0', sign: '#A8B0BC', tag: '#8A92A0', watermark: '#FFFFFF', pattern: 'diagonal', patternOpacity: 32 },
+      { id: 'terracotta', name: '陶土赤陶', bg: '#2B1D18', bg2: '#332521', text: '#F0E4D2', hl: '#D96F3C', sub: '#9A8578', sign: '#B89E8C', tag: '#9A8578', watermark: '#FFFFFF', pattern: 'noise', patternOpacity: 42 },
+      { id: 'ocean-deep', name: '深海靛蓝', bg: '#0A1F2E', bg2: '#112838', text: '#E6EDF2', hl: '#5FB3D4', sub: '#6B8598', sign: '#8FA5B8', tag: '#6B8598', watermark: '#FFFFFF', pattern: 'dots', patternOpacity: 38 },
+      { id: 'plum-rose', name: '梅子玫瑰', bg: '#2A1A2A', bg2: '#352235', text: '#F0E0E4', hl: '#D87A95', sub: '#907585', sign: '#A890A0', tag: '#907585', watermark: '#FFFFFF', pattern: 'diagonal', patternOpacity: 30 },
+      { id: 'olive', name: '橄榄军绿', bg: '#2B2F1F', bg2: '#343828', text: '#EDE6CE', hl: '#B8A248', sub: '#8A8A6E', sign: '#A8A88A', tag: '#8A8A6E', watermark: '#FFFFFF', pattern: 'crosshatch', patternOpacity: 30 },
+      { id: 'copper', name: '紫铜暖灰', bg: '#1E1A17', bg2: '#2A241F', text: '#F0E6D6', hl: '#C67B5C', sub: '#8A7C70', sign: '#A8998A', tag: '#8A7C70', watermark: '#FFFFFF', pattern: 'noise', patternOpacity: 38 },
+      { id: 'ice-mint', name: '薄荷冰川', bg: '#E8EEE9', bg2: '#DEE5E0', text: '#1F2A24', hl: '#2E8B6F', sub: '#6B7A72', sign: '#8A9A92', tag: '#6B7A72', watermark: '#1F2A24', pattern: 'grid', patternOpacity: 38 },
+      { id: 'sand-linen', name: '沙麻浅棕', bg: '#E6DDCF', bg2: '#DCD2C2', text: '#2B2519', hl: '#8B4513', sub: '#776F5E', sign: '#9A907E', tag: '#776F5E', watermark: '#2B2519', pattern: 'noise', patternOpacity: 36 },
+      { id: 'newspaper', name: '老报纸灰', bg: '#D9D2C3', bg2: '#CFC7B6', text: '#1A1A1A', hl: '#9B2D20', sub: '#5F5A4D', sign: '#7E7868', tag: '#5F5A4D', watermark: '#1A1A1A', pattern: 'noise', patternOpacity: 38 },
+      { id: 'cyberpunk', name: '暗夜青蓝', bg: '#0E1419', bg2: '#161D24', text: '#EAEFF2', hl: '#00C2A8', sub: '#6B7A85', sign: '#8A99A5', tag: '#6B7A85', watermark: '#FFFFFF', pattern: 'grid', patternOpacity: 35 }
+    ];
 
-      <div class="field">
-        <label>顶部英文标签</label>
-        <input id="f-tag" value="DEFOUTALK">
-      </div>
+    // 高亮字体库
+    const FONTS = [
+      { id: 'auto', name: '跟随主标题', stack: 'inherit', weight: 'inherit' },
+      { id: 'serif-sc', name: '思源宋体·重体', stack: '"Noto Serif SC","Source Han Serif SC","Songti SC",serif', weight: 900 },
+      { id: 'songti', name: '宋体·粗', stack: '"Songti SC","STSong","SimSun",serif', weight: 900 },
+      { id: 'fangsong', name: '仿宋', stack: '"STFangsong","FangSong",serif', weight: 700 },
+      { id: 'kaiti', name: '楷体', stack: '"STKaiti","Kaiti SC","KaiTi",serif', weight: 700 },
+      { id: 'yuanti', name: '圆体·粗', stack: '"PingFang SC","Yuanti SC","Hiragino Sans GB",sans-serif', weight: 900 },
+      { id: 'pingfang', name: '苹方·极粗', stack: '"PingFang SC","Helvetica Neue",sans-serif', weight: 900 },
+      { id: 'heiti', name: '黑体·粗', stack: '"Heiti SC","STHeiti","SimHei",sans-serif', weight: 900 },
+      { id: 'lishu', name: '隶书', stack: '"STLiti","LiSu",serif', weight: 700 },
+      { id: 'xingkai', name: '行楷·手写', stack: '"STXingkai","HanziPen SC",cursive', weight: 700 },
+      { id: 'serif-italic', name: '衬线斜体', stack: '"Noto Serif SC","Songti SC",serif', weight: 900, italic: true }
+    ];
 
-      <div class="field">
-        <label>引导句（小字细体）</label>
-        <input id="f-lead" value="我为什么要创建一个">
-      </div>
+    // 全平台尺寸
+    const PLATFORMS = [
+      { id: 'twitter', name: 'X', width: 2500, height: 1000, layout: 'banner' },
+      { id: 'wechat', name: '微信', width: 3430, height: 1080, layout: 'wechat' },
+      { id: 'weibo', name: '微博', width: 1920, height: 1080, layout: 'banner' },
+      { id: 'bilibili', name: 'Bilibili', width: 1500, height: 840, layout: 'banner' },
+      { id: 'juejin', name: '掘金', width: 1500, height: 1000, layout: 'poster' },
+      { id: 'baijiahao', name: '百家号', width: 1500, height: 1000, layout: 'poster' },
+      { id: 'toutiao', name: '头条号', width: 1500, height: 1200, layout: 'card' },
+    ];
 
-      <div class="field">
-        <label>核心标题（主标题）</label>
-        <input id="f-main" value="文科生学`AI`的社群？">
-        <div class="hint">用 `` 包裹需要着色的文字，例：学如何`赚钱`？</div>
-        <div class="row" style="grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-          <button class="sec" type="button" onclick="randomHighlight()" style="margin:0;padding:8px">🎯 随机高亮</button>
-          <button class="sec" type="button" onclick="clearHighlight()" style="margin:0;padding:8px">↺ 清除高亮</button>
-        </div>
-      </div>
+    // 按布局档位返回参数
+    function getLayoutParams(pf) {
+      if (pf.layout === 'card') {
+        const sf = pf.height / 1000;
+        return {
+          sf, padH: 70 * sf,
+          tagShow: false, tagSize: 0, tagMB: 0,
+          leadSize: 42 * sf, leadMB: 18 * sf,
+          mainBoost: 1.0,
+          signSize: 28 * sf, signMT: 35 * sf,
+          wmScale: 0.45, wmRight: -60 * sf,
+        };
+      }
+      if (pf.layout === 'poster') {
+        const sf = pf.height / 1000;
+        return {
+          sf, padH: 90 * sf,
+          tagShow: true, tagSize: 22 * sf, tagMB: 35 * sf,
+          leadSize: 48 * sf, leadMB: 22 * sf,
+          mainBoost: 1.0,
+          signSize: 32 * sf, signMT: 50 * sf,
+          wmScale: 0.65, wmRight: -90 * sf,
+        };
+      }
+      // banner（默认）
+      const sf = pf.width / 2500;
+      return {
+        sf, padH: 120 * sf,
+        tagShow: true, tagSize: 26 * sf, tagMB: 60 * sf,
+        leadSize: 58 * sf, leadMB: 30 * sf,
+        mainBoost: 1.0,
+        signSize: 38 * sf, signMT: 80 * sf,
+        wmScale: 1.0, wmRight: -120 * sf,
+      };
+    }
 
-      <div class="field">
-        <label>背景水印字</label>
-        <input id="f-watermark" value="" maxlength="3" placeholder="留空则使用高亮字首字">
-        <div class="row" style="grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
-          <button class="sec" type="button" onclick="randomWatermark()" style="margin:0;padding:8px">🎯 随机水印</button>
-          <button class="sec" type="button" onclick="clearWatermark()" style="margin:0;padding:8px">↺ 跟随标题</button>
-        </div>
-        <div class="hint">留空：自动用高亮字第一个字；点随机：从标题汉字中抽 1 个</div>
-      </div>
+    let currentPalette = PALETTES[0];
 
-      <div class="field">
-        <label>署名</label>
-        <input id="f-sign" value="得否 · @wangdefou · 2026">
-      </div>
-    </div>
+    // ========== 初始化配色选择器 ==========
+    const sel = document.getElementById('f-palette');
+    const paletteGrid = document.getElementById('palette-grid');
+    PALETTES.forEach((p, i) => {
+      const opt = document.createElement('option');
+      opt.value = p.id; opt.textContent = p.name;
+      sel.appendChild(opt);
 
-    <!-- 第二列：样式设置 -->
-    <div class="panel">
-      <div class="panel-title">🎨 样式设置</div>
+      const sw = document.createElement('div');
+      sw.className = 'swatch' + (i === 0 ? ' active' : '');
+      sw.dataset.id = p.id;
+      sw.style.background = p.bg;
+      sw.innerHTML = `
+    <div style="position:absolute;left:10%;top:30%;width:50%;height:12%;background:${p.text};border-radius:2px;"></div>
+    <div style="position:absolute;left:10%;top:50%;width:30%;height:18%;background:${p.hl};border-radius:2px;"></div>
+    <div class="label">${p.name}</div>`;
+      sw.onclick = () => { sel.value = p.id; applyPalette(p.id); };
+      paletteGrid.appendChild(sw);
+    });
+    sel.onchange = () => applyPalette(sel.value);
 
-      <div class="field">
-        <label>主字号</label>
-        <input id="f-size" type="number" value="160" min="80" max="260">
-      </div>
+    // ========== 初始化字体下拉 ==========
+    const fontSel = document.getElementById('f-hl-font');
+    FONTS.forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f.id; opt.textContent = f.name;
+      fontSel.appendChild(opt);
+    });
+    fontSel.addEventListener('change', render);
+    document.getElementById('f-pattern').addEventListener('change', render);
+    document.getElementById('f-pattern-opacity').addEventListener('input', render);
 
-      <div class="field">
-        <label>高亮文字字体</label>
-        <select id="f-hl-font"></select>
-      </div>
+    // ========== 动态创建每个平台的预览卡片 ==========
+    const coverRefs = {}; // { platformId: { cover, inner, pattern, watermark, tag, lead, main, sign, content } }
 
-      <div class="field">
-        <label>背景花纹</label>
-        <select id="f-pattern">
-          <option value="auto" selected>🎨 自动匹配（跟随配色）</option>
-          <option value="none">无</option>
-          <option value="dots">细点网格</option>
-          <option value="grid">极细线网格</option>
-          <option value="diagonal">对角细线</option>
-          <option value="noise">颗粒噪点</option>
-          <option value="crosshatch">交叉斜线</option>
-          <option value="corners">四角装饰线</option>
-        </select>
-        <div class="row" style="grid-template-columns:auto 1fr;gap:8px;margin-top:8px;align-items:center">
-          <label style="font-size:12px;color:var(--ui-muted);margin:0">强度</label>
-          <input id="f-pattern-opacity" type="range" min="0" max="100" value="25">
-        </div>
-      </div>
+    PLATFORMS.forEach(pf => {
+      const card = document.createElement('div');
+      card.className = 'preview-card' + (pf.layout === 'wechat' || pf.id === 'twitter' ? ' full-row' : '');
+      card.title = `点击导出 ${pf.name} PNG`;
+      card.onclick = () => exportPNG(pf);
 
-      <div class="field">
-        <label>配色方案（18 套）</label>
-        <select id="f-palette"></select>
-        <div class="palette-grid" id="palette-grid"></div>
-      </div>
-
-      <button onclick="exportPNG()">⬇ 导出 PNG (2500×1000)</button>
-      <div class="row" style="margin-top:8px">
-        <button class="sec" onclick="randomPalette()" style="margin:0">🎲 随机配色</button>
-        <button class="sec" onclick="randomBackground()" style="margin:0">🎲 随机背景</button>
-      </div>
-    </div>
-
-    <!-- 第三列：预览 -->
-    <div class="preview-wrap">
-      <div class="panel-title">👁 效果预览</div>
-      <div class="preview-meta">
-        <span>预览 · <span id="scale-label">32%</span></span>
-        <span id="palette-name">墨绿经典</span>
-      </div>
+      if (pf.layout === 'wechat') {
+        // 微信拼接：左 2350×1080 横幅 + 右 1080×1080 方形
+        card.innerHTML = `
       <div class="scale-host">
-        <div class="scale-inner" id="scale-inner">
-          <div id="cover">
+        <div class="scale-inner">
+          <div class="cover">
             <div class="bg-grad"></div>
-            <div class="bg-pattern" id="c-pattern"></div>
-            <div class="bg-char" id="c-watermark">赚</div>
-            <div class="content">
-              <div class="tag" id="c-tag">X ARTICLE</div>
-              <div class="lead" id="c-lead">我为什么要创建一个</div>
-              <div class="main" id="c-main">文科生学<span class="hl">AI</span>的社群？</div>
-              <div class="sign" id="c-sign">Wade<span class="dot">·</span>@wadezone<span class="dot">·</span>2026</div>
+            <div class="bg-pattern"></div>
+            <div class="bg-char">赚</div>
+            <div class="divider-line"></div>
+            <div class="content-left">
+              <div class="tag"></div>
+              <div class="lead"></div>
+              <div class="main"></div>
+              <div class="sign"></div>
+            </div>
+            <div class="content-right">
+              <div class="tag"></div>
+              <div class="lead"></div>
+              <div class="main"></div>
+              <div class="sign"></div>
             </div>
           </div>
         </div>
       </div>
-    </div>
-  </div>
-</div>
+      <div class="card-label">
+        <span class="card-name">${pf.name}</span>
+        <span>3430×1080 (宽版+方形合一)</span>
+      </div>
+    `;
+      } else {
+        card.innerHTML = `
+      <div class="scale-host">
+        <div class="scale-inner">
+          <div class="cover">
+            <div class="bg-grad"></div>
+            <div class="bg-pattern"></div>
+            <div class="bg-char">赚</div>
+            <div class="content">
+              <div class="tag"></div>
+              <div class="lead"></div>
+              <div class="main"></div>
+              <div class="sign"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="card-label">
+        <span class="card-name">${pf.name}</span>
+        <span>${pf.width}×${pf.height}</span>
+      </div>
+    `;
+      }
 
-<script>
-// 18 套配色方案（参考 Economist/Vogue/Bloomberg/Kinfolk/Apple/Monocle/Chanel 等）
-const PALETTES = [
-  {id:'ink-green', name:'墨绿经典', bg:'#1C1C1C', bg2:'#252525', text:'#EDE6D8', hl:'#2D5F4A', sub:'#8A8A8A', sign:'#4A6B60', tag:'#8A8A8A', watermark:'#FFFFFF', pattern:'diagonal', patternOpacity:35},
-  {id:'burgundy', name:'勃艮第酒红', bg:'#141414', bg2:'#1F1515', text:'#F0E8DA', hl:'#8B2635', sub:'#9A9A9A', sign:'#6B4A4E', tag:'#9A9A9A', watermark:'#FFFFFF', pattern:'noise', patternOpacity:40},
-  {id:'midnight-navy', name:'极夜藏青', bg:'#0F1A2E', bg2:'#162138', text:'#F5F5F0', hl:'#E8833A', sub:'#7A8599', sign:'#9FAAB8', tag:'#7A8599', watermark:'#FFFFFF', pattern:'grid', patternOpacity:38},
-  {id:'cream', name:'奶油米白', bg:'#E8E2D4', bg2:'#DED6C4', text:'#2B2416', hl:'#B8611D', sub:'#6B6358', sign:'#8B7F70', tag:'#6B6358', watermark:'#2B2416', pattern:'diagonal', patternOpacity:35},
-  {id:'midnight-purple', name:'午夜深紫', bg:'#1A1425', bg2:'#221B30', text:'#EDE4E0', hl:'#C9A27A', sub:'#7A6F85', sign:'#9A8FA5', tag:'#7A6F85', watermark:'#FFFFFF', pattern:'dots', patternOpacity:40},
-  {id:'forest', name:'森林墨绿', bg:'#1F2B24', bg2:'#28362E', text:'#EDE4CF', hl:'#C4A442', sub:'#7A8A7E', sign:'#9AAA9E', tag:'#7A8A7E', watermark:'#FFFFFF', pattern:'crosshatch', patternOpacity:32},
-  {id:'black-gold', name:'纯黑烫金', bg:'#0A0A0A', bg2:'#131313', text:'#F2EDE3', hl:'#B8924A', sub:'#6B6258', sign:'#8A7F70', tag:'#8B7F70', watermark:'#FFFFFF', pattern:'corners', patternOpacity:50},
-  {id:'mini-white', name:'极简素白', bg:'#F5F3EE', bg2:'#EBE8E0', text:'#1A1A1A', hl:'#C8292E', sub:'#888888', sign:'#AAAAAA', tag:'#888888', watermark:'#1A1A1A', pattern:'corners', patternOpacity:55},
-  {id:'morandi', name:'莫兰迪灰蓝', bg:'#2A3441', bg2:'#323D4C', text:'#E8DFD0', hl:'#D4A574', sub:'#8A92A0', sign:'#A8B0BC', tag:'#8A92A0', watermark:'#FFFFFF', pattern:'diagonal', patternOpacity:32},
-  {id:'terracotta', name:'陶土赤陶', bg:'#2B1D18', bg2:'#332521', text:'#F0E4D2', hl:'#D96F3C', sub:'#9A8578', sign:'#B89E8C', tag:'#9A8578', watermark:'#FFFFFF', pattern:'noise', patternOpacity:42},
-  {id:'ocean-deep', name:'深海靛蓝', bg:'#0A1F2E', bg2:'#112838', text:'#E6EDF2', hl:'#5FB3D4', sub:'#6B8598', sign:'#8FA5B8', tag:'#6B8598', watermark:'#FFFFFF', pattern:'dots', patternOpacity:38},
-  {id:'plum-rose', name:'梅子玫瑰', bg:'#2A1A2A', bg2:'#352235', text:'#F0E0E4', hl:'#D87A95', sub:'#907585', sign:'#A890A0', tag:'#907585', watermark:'#FFFFFF', pattern:'diagonal', patternOpacity:30},
-  {id:'olive', name:'橄榄军绿', bg:'#2B2F1F', bg2:'#343828', text:'#EDE6CE', hl:'#B8A248', sub:'#8A8A6E', sign:'#A8A88A', tag:'#8A8A6E', watermark:'#FFFFFF', pattern:'crosshatch', patternOpacity:30},
-  {id:'copper', name:'紫铜暖灰', bg:'#1E1A17', bg2:'#2A241F', text:'#F0E6D6', hl:'#C67B5C', sub:'#8A7C70', sign:'#A8998A', tag:'#8A7C70', watermark:'#FFFFFF', pattern:'noise', patternOpacity:38},
-  {id:'ice-mint', name:'薄荷冰川', bg:'#E8EEE9', bg2:'#DEE5E0', text:'#1F2A24', hl:'#2E8B6F', sub:'#6B7A72', sign:'#8A9A92', tag:'#6B7A72', watermark:'#1F2A24', pattern:'grid', patternOpacity:38},
-  {id:'sand-linen', name:'沙麻浅棕', bg:'#E6DDCF', bg2:'#DCD2C2', text:'#2B2519', hl:'#8B4513', sub:'#776F5E', sign:'#9A907E', tag:'#776F5E', watermark:'#2B2519', pattern:'noise', patternOpacity:36},
-  {id:'newspaper', name:'老报纸灰', bg:'#D9D2C3', bg2:'#CFC7B6', text:'#1A1A1A', hl:'#9B2D20', sub:'#5F5A4D', sign:'#7E7868', tag:'#5F5A4D', watermark:'#1A1A1A', pattern:'noise', patternOpacity:38},
-  {id:'cyberpunk', name:'暗夜青蓝', bg:'#0E1419', bg2:'#161D24', text:'#EAEFF2', hl:'#00C2A8', sub:'#6B7A85', sign:'#8A99A5', tag:'#6B7A85', watermark:'#FFFFFF', pattern:'grid', patternOpacity:35}
-];
+      document.getElementById('preview-grid').appendChild(card);
 
-// 高亮字体库（衬线 / 黑体 / 装饰）
-const FONTS = [
-  {id:'auto', name:'跟随主标题', stack:'inherit', weight:'inherit'},
-  {id:'serif-sc', name:'思源宋体·重体', stack:'"Noto Serif SC","Source Han Serif SC","Songti SC",serif', weight:900},
-  {id:'songti', name:'宋体·粗', stack:'"Songti SC","STSong","SimSun",serif', weight:900},
-  {id:'fangsong', name:'仿宋', stack:'"STFangsong","FangSong",serif', weight:700},
-  {id:'kaiti', name:'楷体', stack:'"STKaiti","Kaiti SC","KaiTi",serif', weight:700},
-  {id:'yuanti', name:'圆体·粗', stack:'"PingFang SC","Yuanti SC","Hiragino Sans GB",sans-serif', weight:900},
-  {id:'pingfang', name:'苹方·极粗', stack:'"PingFang SC","Helvetica Neue",sans-serif', weight:900},
-  {id:'heiti', name:'黑体·粗', stack:'"Heiti SC","STHeiti","SimHei",sans-serif', weight:900},
-  {id:'lishu', name:'隶书', stack:'"STLiti","LiSu",serif', weight:700},
-  {id:'xingkai', name:'行楷·手写', stack:'"STXingkai","HanziPen SC",cursive', weight:700},
-  {id:'serif-italic', name:'衬线斜体', stack:'"Noto Serif SC","Songti SC",serif', weight:900, italic:true}
-];
+      if (pf.layout === 'wechat') {
+        coverRefs[pf.id] = {
+          cover: card.querySelector('.cover'),
+          inner: card.querySelector('.scale-inner'),
+          host: card.querySelector('.scale-host'),
+          pattern: card.querySelector('.bg-pattern'),
+          watermark: card.querySelector('.bg-char'),
+          divider: card.querySelector('.divider-line'),
+          left: {
+            content: card.querySelector('.content-left'),
+            tag: card.querySelector('.content-left .tag'),
+            lead: card.querySelector('.content-left .lead'),
+            main: card.querySelector('.content-left .main'),
+            sign: card.querySelector('.content-left .sign'),
+          },
+          right: {
+            content: card.querySelector('.content-right'),
+            tag: card.querySelector('.content-right .tag'),
+            lead: card.querySelector('.content-right .lead'),
+            main: card.querySelector('.content-right .main'),
+            sign: card.querySelector('.content-right .sign'),
+          },
+        };
+      } else {
+        coverRefs[pf.id] = {
+          cover: card.querySelector('.cover'),
+          inner: card.querySelector('.scale-inner'),
+          host: card.querySelector('.scale-host'),
+          pattern: card.querySelector('.bg-pattern'),
+          watermark: card.querySelector('.bg-char'),
+          tag: card.querySelector('.tag'),
+          lead: card.querySelector('.lead'),
+          main: card.querySelector('.main'),
+          sign: card.querySelector('.sign'),
+          content: card.querySelector('.content'),
+        };
+      }
+    });
 
-let currentPalette = PALETTES[0];
+    // ========== 背景花纹生成 ==========
+    function buildPattern(type, color, opacity) {
+      if (type === 'none') return '';
+      const c = color;
+      const o = opacity;
+      const svgs = {
+        dots: `<svg xmlns='http://www.w3.org/2000/svg' width='40' height='40'><circle cx='2' cy='2' r='1' fill='${c}' opacity='${o}'/></svg>`,
+        grid: `<svg xmlns='http://www.w3.org/2000/svg' width='60' height='60'><path d='M60 0H0V60' fill='none' stroke='${c}' stroke-width='0.5' opacity='${o}'/></svg>`,
+        diagonal: `<svg xmlns='http://www.w3.org/2000/svg' width='30' height='30'><path d='M0 30 L30 0' stroke='${c}' stroke-width='0.6' opacity='${o}'/></svg>`,
+        noise: (() => {
+          let rects = '';
+          const seed = [3, 7, 11, 17, 23, 29, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 2, 5, 13, 19, 31, 39, 44, 51, 57, 63, 69, 74, 78, 82, 88, 91, 95, 99, 6, 14, 22, 26, 34, 38, 46, 52, 58, 64, 68, 75, 81, 86, 92, 96, 4, 8, 12, 16, 21, 25, 33, 36, 42, 48, 54, 62, 66, 72, 77, 84, 87, 93, 98, 1, 9, 15, 18, 24, 28, 32, 35, 45, 49, 55, 60, 65, 70, 76, 80, 85, 90, 94, 10, 20, 27, 30, 40, 50, 56];
+          for (let i = 0; i < seed.length; i++) { const x = (seed[i] * 7) % 100; const y = (seed[i] * 13 + i * 9) % 100; const s = 1 + seed[i] % 2; rects += `<rect x='${x}' y='${y}' width='${s}' height='${s}' fill='${c}' opacity='${o}'/>`; }
+          return `<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'>${rects}</svg>`;
+        })(),
+        crosshatch: `<svg xmlns='http://www.w3.org/2000/svg' width='40' height='40'><path d='M0 40 L40 0 M-10 10 L10 -10 M30 50 L50 30' stroke='${c}' stroke-width='1.2' opacity='${o}'/><path d='M0 0 L40 40 M-10 30 L10 50 M30 -10 L50 10' stroke='${c}' stroke-width='1.2' opacity='${o}'/></svg>`
+      };
+      const svg = svgs[type];
+      if (!svg) return '';
+      return `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}")`;
+    }
 
-// 初始化配色选择器
-const sel = document.getElementById('f-palette');
-const grid = document.getElementById('palette-grid');
-PALETTES.forEach((p,i)=>{
-  const opt = document.createElement('option');
-  opt.value = p.id; opt.textContent = p.name;
-  sel.appendChild(opt);
-
-  const sw = document.createElement('div');
-  sw.className = 'swatch'+(i===0?' active':'');
-  sw.dataset.id = p.id;
-  sw.style.background = p.bg;
-  sw.innerHTML = `
-    <div style="position:absolute;left:10%;top:30%;width:50%;height:12%;background:${p.text};border-radius:2px;"></div>
-    <div style="position:absolute;left:10%;top:50%;width:30%;height:18%;background:${p.hl};border-radius:2px;"></div>
-    <div class="label">${p.name}</div>`;
-  sw.onclick = ()=>{ sel.value = p.id; applyPalette(p.id); };
-  grid.appendChild(sw);
-});
-sel.onchange = ()=>applyPalette(sel.value);
-
-// 初始化字体下拉
-const fontSel = document.getElementById('f-hl-font');
-FONTS.forEach(f=>{
-  const opt = document.createElement('option');
-  opt.value = f.id; opt.textContent = f.name;
-  fontSel.appendChild(opt);
-});
-fontSel.addEventListener('change', render);
-document.getElementById('f-pattern').addEventListener('change', render);
-document.getElementById('f-pattern-opacity').addEventListener('input', render);
-
-// 背景花纹生成（SVG data URI，自适应配色）
-function buildPattern(type, color, opacity){
-  if(type === 'none') return '';
-  const c = color;
-  const o = opacity;
-  const svgs = {
-    dots: `<svg xmlns='http://www.w3.org/2000/svg' width='40' height='40'><circle cx='2' cy='2' r='1' fill='${c}' opacity='${o}'/></svg>`,
-    grid: `<svg xmlns='http://www.w3.org/2000/svg' width='60' height='60'><path d='M60 0H0V60' fill='none' stroke='${c}' stroke-width='0.5' opacity='${o}'/></svg>`,
-    diagonal: `<svg xmlns='http://www.w3.org/2000/svg' width='30' height='30'><path d='M0 30 L30 0' stroke='${c}' stroke-width='0.6' opacity='${o}'/></svg>`,
-    noise: (()=>{
-      let rects='';
-      const seed=[3,7,11,17,23,29,37,41,43,47,53,59,61,67,71,73,79,83,89,97,2,5,13,19,31,39,44,51,57,63,69,74,78,82,88,91,95,99,6,14,22,26,34,38,46,52,58,64,68,75,81,86,92,96,4,8,12,16,21,25,33,36,42,48,54,62,66,72,77,84,87,93,98,1,9,15,18,24,28,32,35,45,49,55,60,65,70,76,80,85,90,94,10,20,27,30,40,50,56];
-      for(let i=0;i<seed.length;i++){const x=(seed[i]*7)%100;const y=(seed[i]*13+i*9)%100;const s=1+seed[i]%2;rects+=`<rect x='${x}' y='${y}' width='${s}' height='${s}' fill='${c}' opacity='${o}'/>`;}
-      return `<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'>${rects}</svg>`;
-    })(),
-    crosshatch: `<svg xmlns='http://www.w3.org/2000/svg' width='40' height='40'><path d='M0 40 L40 0 M-10 10 L10 -10 M30 50 L50 30' stroke='${c}' stroke-width='1.2' opacity='${o}'/><path d='M0 0 L40 40 M-10 30 L10 50 M30 -10 L50 10' stroke='${c}' stroke-width='1.2' opacity='${o}'/></svg>`
-  };
-  const svg = svgs[type];
-  if(!svg) return '';
-  return `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}")`;
-}
-
-function buildCorners(color, opacity){
-  // 四角装饰细线（绝对定位 SVG）
-  return `<svg xmlns='http://www.w3.org/2000/svg' width='2500' height='1000' style='position:absolute;inset:0;opacity:${opacity}'>
+    function buildCorners(color, opacity, w, h) {
+      const m = Math.min(w, h) * 0.04;
+      const l = m * 2;
+      return `<svg xmlns='http://www.w3.org/2000/svg' width='${w}' height='${h}' style='position:absolute;inset:0;opacity:${opacity}'>
     <g stroke='${color}' stroke-width='1.2' fill='none'>
-      <path d='M80 80 L80 160 M80 80 L160 80'/>
-      <path d='M2420 80 L2420 160 M2420 80 L2340 80'/>
-      <path d='M80 920 L80 840 M80 920 L160 920'/>
-      <path d='M2420 920 L2420 840 M2420 920 L2340 920'/>
+      <path d='M${m} ${m} L${m} ${m + l} M${m} ${m} L${m + l} ${m}'/>
+      <path d='M${w - m} ${m} L${w - m} ${m + l} M${w - m} ${m} L${w - m - l} ${m}'/>
+      <path d='M${m} ${h - m} L${m} ${h - m - l} M${m} ${h - m} L${m + l} ${h - m}'/>
+      <path d='M${w - m} ${h - m} L${w - m} ${h - m - l} M${w - m} ${h - m} L${w - m - l} ${h - m}'/>
     </g>
   </svg>`;
-}
-
-function applyPalette(id){
-  currentPalette = PALETTES.find(p=>p.id===id) || PALETTES[0];
-  document.querySelectorAll('.swatch').forEach(s=>{
-    s.classList.toggle('active', s.dataset.id===id);
-  });
-  document.getElementById('palette-name').textContent = currentPalette.name;
-  render();
-}
-
-// 绑定输入
-['f-tag','f-lead','f-main','f-size','f-watermark','f-sign'].forEach(id=>{
-  document.getElementById(id).addEventListener('input', render);
-});
-
-// 解析主标题里的 `xxx` 高亮
-function parseMain(text){
-  return text.replace(/`([^`]+)`/g, '<span class="hl">$1</span>');
-}
-// 解析署名里的 · 替换为 dot span
-function parseSign(text){
-  return text.split(/\s*[·•]\s*/).map(s=>s.trim()).filter(Boolean)
-    .map((s,i)=> i===0 ? s : `<span class="dot">·</span>${s}`).join('');
-}
-
-function render(){
-  const p = currentPalette;
-  const cover = document.getElementById('cover');
-
-  // 背景渐变（左上→右下）
-  cover.style.background = `linear-gradient(135deg, ${p.bg2} 0%, ${p.bg} 60%, ${p.bg} 100%)`;
-
-  const tag = document.getElementById('f-tag').value;
-  const lead = document.getElementById('f-lead').value;
-  const mainRaw = document.getElementById('f-main').value;
-  const size = document.getElementById('f-size').value;
-  const watermarkInput = document.getElementById('f-watermark');
-  const sign = document.getElementById('f-sign').value;
-
-  // 自动高亮：如果没有 ``，默认把最后 2 个字染色
-  let mainHTML, highlightText = '';
-  if(mainRaw.includes('`')){
-    mainHTML = parseMain(mainRaw);
-    const mm = mainRaw.match(/`([^`]+)`/);
-    highlightText = mm ? mm[1] : '';
-  } else {
-    const m = mainRaw.match(/^(.*?)([\u4e00-\u9fa5]{2})([？?！!。]?)$/);
-    if(m){
-      mainHTML = `${m[1]}<span class="hl">${m[2]}</span>${m[3]}`;
-      highlightText = m[2];
-    } else {
-      mainHTML = mainRaw;
-      highlightText = mainRaw.slice(-2);
     }
-  }
 
-  // 水印字：手动输入优先；留空则跟随高亮字首字
-  const watermark = watermarkInput.value.trim()
-    || highlightText.charAt(0)
-    || mainRaw.charAt(0)
-    || '';
+    // ========== 本地存储 ==========
+    const STORAGE_KEY = 'cover_gen_state';
+    const STYLE_LIB_KEY = 'cover_gen_styles';
 
-  document.getElementById('c-tag').textContent = tag;
-  document.getElementById('c-tag').style.color = p.tag;
-
-  document.getElementById('c-lead').textContent = lead;
-  document.getElementById('c-lead').style.color = p.sub;
-
-  const mainEl = document.getElementById('c-main');
-  mainEl.innerHTML = mainHTML;
-  mainEl.style.color = p.text;
-  mainEl.style.fontSize = size+'px';
-
-  // 应用高亮字体
-  const fontId = document.getElementById('f-hl-font').value;
-  const font = FONTS.find(f=>f.id===fontId) || FONTS[0];
-  mainEl.querySelectorAll('.hl').forEach(h=>{
-    h.style.color = p.hl;
-    if(font.id === 'auto'){
-      h.style.fontFamily = '';
-      h.style.fontWeight = '';
-      h.style.fontStyle = '';
-    } else {
-      h.style.fontFamily = font.stack;
-      h.style.fontWeight = font.weight;
-      h.style.fontStyle = font.italic ? 'italic' : 'normal';
+    // ========== 样式库（多个命名方案） ==========
+    function getStyleLib() {
+      try { return JSON.parse(localStorage.getItem(STYLE_LIB_KEY)) || []; } catch (e) { return []; }
     }
-  });
+    function setStyleLib(lib) {
+      try { localStorage.setItem(STYLE_LIB_KEY, JSON.stringify(lib)); } catch (e) { }
+    }
 
-  const wm = document.getElementById('c-watermark');
-  wm.textContent = watermark;
-  wm.style.color = p.watermark;
+    function refreshStyleList() {
+      const select = document.getElementById('style-list');
+      const cur = select.value;
+      select.innerHTML = '<option value="">— 样式库 —</option>';
+      getStyleLib().forEach((s, i) => {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = s.name;
+        select.appendChild(opt);
+      });
+      if (cur !== '') select.value = cur;
+    }
 
-  // 背景花纹（auto 模式跟随配色推荐）
-  const patternSel = document.getElementById('f-pattern');
-  const patternOpSlider = document.getElementById('f-pattern-opacity');
-  let patternType = patternSel.value;
-  let patternOpacityPct = +patternOpSlider.value;
-  if(patternType === 'auto'){
-    patternType = p.pattern || 'none';
-    patternOpacityPct = p.patternOpacity || 20;
-    patternOpSlider.value = patternOpacityPct;
-  }
-  const patternOpacity = patternOpacityPct / 100;
-  const patternEl = document.getElementById('c-pattern');
-  if(patternType === 'none'){
-    patternEl.style.backgroundImage = '';
-    patternEl.innerHTML = '';
-  } else if(patternType === 'corners'){
-    patternEl.style.backgroundImage = '';
-    patternEl.innerHTML = buildCorners(p.watermark, patternOpacity);
-  } else {
-    patternEl.innerHTML = '';
-    patternEl.style.backgroundImage = buildPattern(patternType, p.watermark, patternOpacity);
-  }
+    function saveStyleToLib() {
+      const palette = PALETTES.find(p => p.id === document.getElementById('f-palette').value) || PALETTES[0];
+      const defaultName = palette.name + ' · ' + document.getElementById('f-main').value.replace(/`/g, '').slice(0, 12);
+      const name = prompt('为当前样式命名：', defaultName);
+      if (!name) return;
+      const lib = getStyleLib();
+      lib.push({
+        name,
+        tag: document.getElementById('f-tag').value,
+        lead: document.getElementById('f-lead').value,
+        main: document.getElementById('f-main').value,
+        size: document.getElementById('f-size').value,
+        watermark: document.getElementById('f-watermark').value,
+        sign: document.getElementById('f-sign').value,
+        palette: document.getElementById('f-palette').value,
+        hlFont: document.getElementById('f-hl-font').value,
+        pattern: document.getElementById('f-pattern').value,
+        patternOpacity: document.getElementById('f-pattern-opacity').value,
+        savedAt: Date.now(),
+      });
+      setStyleLib(lib);
+      refreshStyleList();
+      document.getElementById('style-list').value = lib.length - 1;
+    }
 
-  const signEl = document.getElementById('c-sign');
-  signEl.innerHTML = parseSign(sign);
-  signEl.style.color = p.sign;
+    function loadSelectedStyle() {
+      const idx = document.getElementById('style-list').value;
+      if (idx === '') return;
+      const lib = getStyleLib();
+      const s = lib[+idx];
+      if (!s) return;
+      if (s.tag != null) document.getElementById('f-tag').value = s.tag;
+      if (s.lead != null) document.getElementById('f-lead').value = s.lead;
+      if (s.main != null) document.getElementById('f-main').value = s.main;
+      if (s.size != null) document.getElementById('f-size').value = s.size;
+      if (s.watermark != null) document.getElementById('f-watermark').value = s.watermark;
+      if (s.sign != null) document.getElementById('f-sign').value = s.sign;
+      if (s.palette != null) {
+        document.getElementById('f-palette').value = s.palette;
+        applyPalette(s.palette);
+      }
+      if (s.hlFont != null) document.getElementById('f-hl-font').value = s.hlFont;
+      if (s.pattern != null) document.getElementById('f-pattern').value = s.pattern;
+      if (s.patternOpacity != null) document.getElementById('f-pattern-opacity').value = s.patternOpacity;
+      render();
+    }
 
-  fitPreview();
-}
+    function deleteSelectedStyle() {
+      const idx = document.getElementById('style-list').value;
+      if (idx === '') return;
+      const lib = getStyleLib();
+      const name = lib[+idx]?.name || '';
+      if (!confirm(`删除样式「${name}」？`)) return;
+      lib.splice(+idx, 1);
+      setStyleLib(lib);
+      refreshStyleList();
+      render();
+    }
 
-function fitPreview(){
-  const host = document.querySelector('.scale-host');
-  const inner = document.getElementById('scale-inner');
-  const cover = document.getElementById('cover');
-  const w = host.clientWidth - 2;
-  const scale = Math.min(w/2500, 1);
-  cover.style.transform = `scale(${scale})`;
-  inner.style.width = (2500*scale)+'px';
-  inner.style.height = (1000*scale)+'px';
-  document.getElementById('scale-label').textContent = Math.round(scale*100)+'%';
-}
-window.addEventListener('resize', fitPreview);
+    refreshStyleList();
 
-function randomPalette(){
-  const p = PALETTES[Math.floor(Math.random()*PALETTES.length)];
-  sel.value = p.id;
-  applyPalette(p.id);
-}
+    function saveState() {
+      const state = {
+        tag: document.getElementById('f-tag').value,
+        lead: document.getElementById('f-lead').value,
+        main: document.getElementById('f-main').value,
+        size: document.getElementById('f-size').value,
+        watermark: document.getElementById('f-watermark').value,
+        sign: document.getElementById('f-sign').value,
+        palette: document.getElementById('f-palette').value,
+        hlFont: document.getElementById('f-hl-font').value,
+        pattern: document.getElementById('f-pattern').value,
+        patternOpacity: document.getElementById('f-pattern-opacity').value,
+      };
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { }
+    }
 
-// 随机背景花纹（不改变配色）
-function randomBackground(){
-  const patterns = ['none','dots','grid','diagonal','noise','crosshatch','corners'];
-  const pick = patterns[Math.floor(Math.random()*patterns.length)];
-  const opacity = 25 + Math.floor(Math.random()*35);
-  document.getElementById('f-pattern').value = pick;
-  document.getElementById('f-pattern-opacity').value = opacity;
-  render();
-}
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const s = JSON.parse(raw);
+        if (s.tag != null) document.getElementById('f-tag').value = s.tag;
+        if (s.lead != null) document.getElementById('f-lead').value = s.lead;
+        if (s.main != null) document.getElementById('f-main').value = s.main;
+        if (s.size != null) document.getElementById('f-size').value = s.size;
+        if (s.watermark != null) document.getElementById('f-watermark').value = s.watermark;
+        if (s.sign != null) document.getElementById('f-sign').value = s.sign;
+        if (s.palette != null) {
+          document.getElementById('f-palette').value = s.palette;
+          applyPalette(s.palette);
+        }
+        if (s.hlFont != null) document.getElementById('f-hl-font').value = s.hlFont;
+        if (s.pattern != null) document.getElementById('f-pattern').value = s.pattern;
+        if (s.patternOpacity != null) document.getElementById('f-pattern-opacity').value = s.patternOpacity;
+      } catch (e) { }
+    }
 
-// 随机选择标题中的连续 1-3 个汉字作为高亮
-function randomHighlight(){
-  const input = document.getElementById('f-main');
-  const raw = input.value.replace(/`/g,''); // 先清除已有标记
-  const chars = [...raw];
-  // 只挑汉字位置
-  const cnPositions = [];
-  chars.forEach((c,i)=>{ if(/[\u4e00-\u9fa5]/.test(c)) cnPositions.push(i); });
-  if(cnPositions.length === 0){ input.value = raw; render(); return; }
+    // ========== 配色 & 输入绑定 ==========
+    function applyPalette(id) {
+      currentPalette = PALETTES.find(p => p.id === id) || PALETTES[0];
+      document.querySelectorAll('.swatch').forEach(s => {
+        s.classList.toggle('active', s.dataset.id === id);
+      });
+      document.getElementById('palette-name').textContent = currentPalette.name;
+      render();
+    }
 
-  // 随机长度 1-3，随机起点（要求连续都是汉字）
-  const maxLen = Math.min(3, cnPositions.length);
-  const len = 1 + Math.floor(Math.random() * maxLen);
-  // 找所有可用起点（连续 len 个都是汉字）
-  const starts = [];
-  for(let i=0; i<=chars.length-len; i++){
-    if(chars.slice(i,i+len).every(c=>/[\u4e00-\u9fa5]/.test(c))) starts.push(i);
-  }
-  if(starts.length === 0){ input.value = raw; render(); return; }
-  const s = starts[Math.floor(Math.random()*starts.length)];
-
-  const before = chars.slice(0,s).join('');
-  const hl = chars.slice(s,s+len).join('');
-  const after = chars.slice(s+len).join('');
-  input.value = `${before}\`${hl}\`${after}`;
-  render();
-}
-
-function clearHighlight(){
-  const input = document.getElementById('f-main');
-  input.value = input.value.replace(/`/g,'');
-  render();
-}
-
-// 从标题汉字中随机抽 1 个作为背景水印
-function randomWatermark(){
-  const raw = document.getElementById('f-main').value.replace(/`/g,'');
-  const cn = [...raw].filter(c=>/[\u4e00-\u9fa5]/.test(c));
-  if(cn.length === 0) return;
-  const pick = cn[Math.floor(Math.random()*cn.length)];
-  document.getElementById('f-watermark').value = pick;
-  render();
-}
-
-function clearWatermark(){
-  document.getElementById('f-watermark').value = '';
-  render();
-}
-
-async function exportPNG(){
-  const cover = document.getElementById('cover');
-  const inner = document.getElementById('scale-inner');
-
-  // 临时将 cover 恢复到原始尺寸以获取完整分辨率
-  const prevTransform = cover.style.transform;
-  const prevInnerW = inner.style.width;
-  const prevInnerH = inner.style.height;
-  cover.style.transform = 'none';
-  inner.style.width = '2500px';
-  inner.style.height = '1000px';
-
-  // 对内联 SVG（corners）进行处理：将其转为 data URI 背景
-  const patternEl = document.getElementById('c-pattern');
-  const inlineSvg = patternEl.querySelector('svg');
-  let prevPatternBg = '';
-  let prevPatternHTML = '';
-  if(inlineSvg){
-    prevPatternHTML = patternEl.innerHTML;
-    const svgStr = new XMLSerializer().serializeToString(inlineSvg);
-    const encoded = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
-    patternEl.innerHTML = '';
-    prevPatternBg = patternEl.style.backgroundImage;
-    patternEl.style.backgroundImage = `url("${encoded}")`;
-    patternEl.style.backgroundSize = '100% 100%';
-  }
-
-  try{
-    const dataUrl = await htmlToImage.toPng(cover, {
-      width:2500, height:1000, pixelRatio:1, cacheBust:true,
-      style:{transform:'none', transformOrigin:'top left'}
+    ['f-tag', 'f-lead', 'f-main', 'f-size', 'f-watermark', 'f-sign'].forEach(id => {
+      document.getElementById(id).addEventListener('input', render);
     });
-    const mainText = document.getElementById('f-main').value.replace(/`/g,'').replace(/[\\/:*?"<>|]/g,'_').slice(0,20);
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = `cover_${mainText}_${currentPalette.id}.png`;
-    a.click();
-  }catch(e){
-    alert('导出失败：'+e.message);
-  }finally{
-    // 恢复内联 SVG
-    if(prevPatternHTML){
-      patternEl.style.backgroundImage = prevPatternBg;
-      patternEl.style.backgroundSize = '';
-      patternEl.innerHTML = prevPatternHTML;
-    }
-    cover.style.transform = prevTransform;
-    inner.style.width = prevInnerW;
-    inner.style.height = prevInnerH;
-    fitPreview();
-  }
-}
 
-// 初始化
-render();
-setTimeout(fitPreview, 100);
-</script>
+    function parseMain(text) {
+      return text.replace(/`([^`]+)`/g, '<span class="hl">$1</span>');
+    }
+    function parseSign(text) {
+      return text.split(/\s*[·•]\s*/).map(s => s.trim()).filter(Boolean)
+        .map((s, i) => i === 0 ? s : `<span class="dot">·</span>${s}`).join('');
+    }
+
+    // ========== 核心渲染：遍历所有平台 ==========
+    function render() {
+      const p = currentPalette;
+
+      // 读取公共输入
+      const tag = document.getElementById('f-tag').value;
+      const lead = document.getElementById('f-lead').value;
+      const mainRaw = document.getElementById('f-main').value;
+      const size = +document.getElementById('f-size').value;
+      const sign = document.getElementById('f-sign').value;
+      const watermarkInput = document.getElementById('f-watermark');
+
+      // 解析高亮
+      let mainHTML, highlightText = '';
+      if (mainRaw.includes('`')) {
+        mainHTML = parseMain(mainRaw);
+        const mm = mainRaw.match(/`([^`]+)`/);
+        highlightText = mm ? mm[1] : '';
+      } else {
+        const m = mainRaw.match(/^(.*?)([一-龥]{2})([？?！!。]?)$/);
+        if (m) {
+          mainHTML = `${m[1]}<span class="hl">${m[2]}</span>${m[3]}`;
+          highlightText = m[2];
+        } else {
+          mainHTML = mainRaw;
+          highlightText = mainRaw.slice(-2);
+        }
+      }
+
+      const watermark = watermarkInput.value.trim()
+        || highlightText.charAt(0)
+        || mainRaw.charAt(0)
+        || '';
+
+      // 花纹参数
+      const fontId = document.getElementById('f-hl-font').value;
+      const font = FONTS.find(f => f.id === fontId) || FONTS[0];
+      const patternSel = document.getElementById('f-pattern');
+      const patternOpSlider = document.getElementById('f-pattern-opacity');
+      let patternType = patternSel.value;
+      let patternOpacityPct = +patternOpSlider.value;
+      if (patternType === 'auto') {
+        patternType = p.pattern || 'none';
+        patternOpacityPct = p.patternOpacity || 20;
+        patternOpSlider.value = patternOpacityPct;
+      }
+      const patternOpacity = patternOpacityPct / 100;
+
+      // 渲染单个面板的通用函数
+      function renderPanel(panel, lp, tagShow) {
+        if (tagShow) {
+          panel.tag.textContent = tag;
+          panel.tag.style.color = p.tag;
+          panel.tag.style.fontSize = lp.tagSize + 'px';
+          panel.tag.style.marginBottom = lp.tagMB + 'px';
+          panel.tag.style.display = '';
+        } else {
+          panel.tag.style.display = 'none';
+        }
+
+        panel.lead.textContent = lead;
+        panel.lead.style.color = p.sub;
+        panel.lead.style.fontSize = lp.leadSize + 'px';
+        panel.lead.style.marginBottom = lp.leadMB + 'px';
+
+        panel.main.innerHTML = mainHTML;
+        panel.main.style.color = p.text;
+        panel.main.style.fontSize = (size * lp.mainBoost * lp.sf) + 'px';
+
+        panel.main.querySelectorAll('.hl').forEach(h => {
+          h.style.color = p.hl;
+          if (font.id === 'auto') {
+            h.style.fontFamily = '';
+            h.style.fontWeight = '';
+            h.style.fontStyle = '';
+          } else {
+            h.style.fontFamily = font.stack;
+            h.style.fontWeight = font.weight;
+            h.style.fontStyle = font.italic ? 'italic' : 'normal';
+          }
+        });
+
+        panel.sign.innerHTML = parseSign(sign);
+        panel.sign.style.color = p.sign;
+        panel.sign.style.fontSize = lp.signSize + 'px';
+        panel.sign.style.marginTop = lp.signMT + 'px';
+      }
+
+      // 渲染每个平台
+      PLATFORMS.forEach(pf => {
+        const el = coverRefs[pf.id];
+        const cover = el.cover;
+
+        cover.style.width = pf.width + 'px';
+        cover.style.height = pf.height + 'px';
+        cover.style.background = `linear-gradient(135deg, ${p.bg2} 0%, ${p.bg} 60%, ${p.bg} 100%)`;
+
+        // 花纹
+        if (patternType === 'none') {
+          el.pattern.style.backgroundImage = '';
+          el.pattern.innerHTML = '';
+        } else if (patternType === 'corners') {
+          el.pattern.style.backgroundImage = '';
+          el.pattern.innerHTML = buildCorners(p.watermark, patternOpacity, pf.width, pf.height);
+        } else {
+          el.pattern.innerHTML = '';
+          el.pattern.style.backgroundImage = buildPattern(patternType, p.watermark, patternOpacity);
+        }
+
+        // 微信拼接：左面板 banner + 右面板 card
+        if (pf.layout === 'wechat') {
+          const lpL = getLayoutParams({ layout: 'banner', width: 2350, height: 1080 });
+          const lpR = getLayoutParams({ layout: 'card', width: 1080, height: 1080 });
+
+          // 左面板（宽版 2350×1080）
+          el.left.content.style.width = '2350px';
+          el.left.content.style.padding = `0 ${lpL.padH}px`;
+          renderPanel(el.left, lpL, lpL.tagShow);
+
+          // 右面板（方形 1080×1080）
+          el.right.content.style.width = '1080px';
+          el.right.content.style.padding = `0 ${lpR.padH}px`;
+          renderPanel(el.right, lpR, false);
+
+          // 水印：居中于左面板
+          el.watermark.textContent = watermark;
+          el.watermark.style.color = p.watermark;
+          el.watermark.style.fontSize = (1080 * lpL.wmScale) + 'px';
+          el.watermark.style.right = '';
+          el.watermark.style.left = (2350 / 2 - (1080 * 0.3)) + 'px';
+
+          // 分割线位置
+          el.divider.style.left = '2350px';
+          el.divider.style.borderColor = p.watermark + '1A';
+          return;
+        }
+
+        // 普通平台
+        const lp = getLayoutParams(pf);
+        el.content.style.padding = `0 ${lp.padH}px`;
+        renderPanel(el, lp, lp.tagShow);
+
+        el.watermark.textContent = watermark;
+        el.watermark.style.color = p.watermark;
+        el.watermark.style.fontSize = (pf.height * lp.wmScale) + 'px';
+        el.watermark.style.right = lp.wmRight + 'px';
+        el.watermark.style.left = '';
+      });
+
+      fitAllPreviews();
+      saveState();
+    }
+    function fitAllPreviews() {
+      PLATFORMS.forEach(pf => {
+        const el = coverRefs[pf.id];
+        const w = el.host.clientWidth - 2;
+        if (w <= 0) return;
+        const scale = Math.min(w / pf.width, 1);
+        el.cover.style.transform = `scale(${scale})`;
+        el.inner.style.width = (pf.width * scale) + 'px';
+        el.inner.style.height = (pf.height * scale) + 'px';
+      });
+    }
+    window.addEventListener('resize', fitAllPreviews);
+
+    // ========== 工具函数 ==========
+    function randomPalette() {
+      const p = PALETTES[Math.floor(Math.random() * PALETTES.length)];
+      sel.value = p.id;
+      applyPalette(p.id);
+    }
+
+    function randomBackground() {
+      const patterns = ['none', 'dots', 'grid', 'diagonal', 'noise', 'crosshatch', 'corners'];
+      const pick = patterns[Math.floor(Math.random() * patterns.length)];
+      const opacity = 25 + Math.floor(Math.random() * 35);
+      document.getElementById('f-pattern').value = pick;
+      document.getElementById('f-pattern-opacity').value = opacity;
+      render();
+    }
+
+    function randomHighlight() {
+      const input = document.getElementById('f-main');
+      const raw = input.value.replace(/`/g, '');
+      const chars = [...raw];
+      const cnPositions = [];
+      chars.forEach((c, i) => { if (/[一-龥]/.test(c)) cnPositions.push(i); });
+      if (cnPositions.length === 0) { input.value = raw; render(); return; }
+      const maxLen = Math.min(3, cnPositions.length);
+      const len = 1 + Math.floor(Math.random() * maxLen);
+      const starts = [];
+      for (let i = 0; i <= chars.length - len; i++) {
+        if (chars.slice(i, i + len).every(c => /[一-龥]/.test(c))) starts.push(i);
+      }
+      if (starts.length === 0) { input.value = raw; render(); return; }
+      const s = starts[Math.floor(Math.random() * starts.length)];
+      const before = chars.slice(0, s).join('');
+      const hl = chars.slice(s, s + len).join('');
+      const after = chars.slice(s + len).join('');
+      input.value = `${before}\`${hl}\`${after}`;
+      render();
+    }
+
+    function clearHighlight() {
+      const input = document.getElementById('f-main');
+      input.value = input.value.replace(/`/g, '');
+      render();
+    }
+
+    function randomWatermark() {
+      const raw = document.getElementById('f-main').value.replace(/`/g, '');
+      const cn = [...raw].filter(c => /[一-龥]/.test(c));
+      if (cn.length === 0) return;
+      const pick = cn[Math.floor(Math.random() * cn.length)];
+      document.getElementById('f-watermark').value = pick;
+      render();
+    }
+
+    function clearWatermark() {
+      document.getElementById('f-watermark').value = '';
+      render();
+    }
+
+    // ========== 通用：截取单个平台封面为 dataURL ==========
+    async function captureCover(pf) {
+      const el = coverRefs[pf.id];
+      const cover = el.cover;
+      const inner = el.inner;
+
+      const prevTransform = cover.style.transform;
+      const prevInnerW = inner.style.width;
+      const prevInnerH = inner.style.height;
+      cover.style.transform = 'none';
+      inner.style.width = pf.width + 'px';
+      inner.style.height = pf.height + 'px';
+
+      const patternEl = el.pattern;
+      const inlineSvg = patternEl.querySelector('svg');
+      let prevPatternBg = '';
+      let prevPatternHTML = '';
+      if (inlineSvg) {
+        prevPatternHTML = patternEl.innerHTML;
+        const svgStr = new XMLSerializer().serializeToString(inlineSvg);
+        const encoded = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
+        patternEl.innerHTML = '';
+        prevPatternBg = patternEl.style.backgroundImage;
+        patternEl.style.backgroundImage = `url("${encoded}")`;
+        patternEl.style.backgroundSize = '100% 100%';
+      }
+
+      try {
+        const dataUrl = await htmlToImage.toPng(cover, {
+          width: pf.width, height: pf.height, pixelRatio: 1, cacheBust: true,
+          style: { transform: 'none', transformOrigin: 'top left' }
+        });
+        return dataUrl;
+      } finally {
+        if (prevPatternHTML) {
+          patternEl.style.backgroundImage = prevPatternBg;
+          patternEl.style.backgroundSize = '';
+          patternEl.innerHTML = prevPatternHTML;
+        }
+        cover.style.transform = prevTransform;
+        inner.style.width = prevInnerW;
+        inner.style.height = prevInnerH;
+      }
+    }
+
+    // dataURL → Blob
+    function dataURLtoBlob(dataUrl) {
+      const [header, data] = dataUrl.split(',');
+      const mime = header.match(/:(.*?);/)[1];
+      const binary = atob(data);
+      const arr = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) arr[i] = binary.charCodeAt(i);
+      return new Blob([arr], { type: mime });
+    }
+
+    // 清理文件名中的非法字符
+    function safeName(s) {
+      return s.replace(/[\\/:*?"<>|]/g, '');
+    }
+
+    // ========== 导出单个平台（点击卡片） ==========
+    async function exportPNG(platform) {
+      try {
+        const dataUrl = await captureCover(platform);
+        const mainText = safeName(document.getElementById('f-main').value.replace(/`/g, '')).slice(0, 20);
+        const fileName = `${platform.name}_${platform.width}x${platform.height}.png`;
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = fileName;
+        a.click();
+      } catch (e) {
+        alert('导出失败：' + e.message);
+      } finally {
+        fitAllPreviews();
+      }
+    }
+
+    // ========== 一键导出 ZIP ==========
+    async function exportAllZip() {
+      const btn = document.getElementById('btn-export-zip');
+      const origText = btn.textContent;
+      btn.textContent = '⏳ 正在生成...';
+      btn.disabled = true;
+
+      try {
+        const zip = new JSZip();
+        const mainText = safeName(document.getElementById('f-main').value.replace(/`/g, ''));
+
+        for (const pf of PLATFORMS) {
+          btn.textContent = `⏳ 生成中 ${pf.name}...`;
+          const dataUrl = await captureCover(pf);
+          const fileName = `${pf.name}_${pf.width}x${pf.height}.png`;
+          zip.file(fileName, dataURLtoBlob(dataUrl));
+        }
+
+        btn.textContent = '⏳ 打包 ZIP...';
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `${mainText}.zip`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      } catch (e) {
+        alert('导出失败：' + e.message);
+      } finally {
+        btn.textContent = origText;
+        btn.disabled = false;
+        fitAllPreviews();
+      }
+    }
+
+    // ========== 初始化 ==========
+    loadState();
+    render();
+    setTimeout(fitAllPreviews, 100);
+
+    // ========== Agent 安装提示词 ==========
+    function copyAgentPrompt() {
+      const prompt = `全媒体封面图生成器 — AI Agent 安装指南
+
+这个工具能帮你为文章一键生成 Twitter/X、微信、微博、B站、掘金、百家号、头条号等 7 个平台的封面图。
+
+请执行以下步骤完成安装：
+
+1. 安装 Claude Code Skill（项目级）：
+   npx skills add cnzhihao/twitter-cover-generator
+
+2. 安装 OpenCLI 和 esbuild：
+   npm install -g @jackwener/opencli esbuild
+
+3. 安装封面生成 OpenCLI 插件：
+   opencli plugin install github:cnzhihao/twitter-cover-generator/cover-generator
+   opencli plugin update cover-generator
+
+4. 验证安装成功：
+   opencli cover-generator --help
+   应显示 generate、suggest-style、list-palettes、list-platforms 四个命令
+
+如果第 4 步验证失败，按以下顺序排查：
+
+- 运行 opencli doctor 检查浏览器连接状态
+- 如果提示浏览器桥接未连接，说明 Chrome 浏览器中还没有安装 OpenCLI 扩展：
+  1. 打开 Chrome，访问 https://opencli.info/docs/zh/guide/browser-bridge.html
+  2. 按页面指引安装 OpenCLI Browser Bridge 扩展
+  3. 安装后重启浏览器，再次运行 opencli doctor 确认连接成功
+- 如果 esbuild 报错，确认 node 版本 >= 18（node -v 查看）
+- 如果插件编译失败，尝试 npm i -g esbuild 后重新 opencli plugin update cover-generator
+
+安装完成后，当我说"生成封面"或"做张封面图"时，按照 cover-generator skill 的指引帮我生成封面图。`;
+
+      navigator.clipboard.writeText(prompt).then(() => {
+        const toast = document.createElement('div');
+        toast.className = 'copy-toast';
+        toast.textContent = '✅ 提示词已复制，粘贴给 AI 即可安装';
+        document.body.appendChild(toast);
+        requestAnimationFrame(() => toast.classList.add('show'));
+        setTimeout(() => {
+          toast.classList.remove('show');
+          setTimeout(() => toast.remove(), 300);
+        }, 2000);
+      }).catch(() => {
+        // fallback: 选中文本
+        const ta = document.createElement('textarea');
+        ta.value = prompt;
+        ta.style.cssText = 'position:fixed;opacity:0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        alert('提示词已复制到剪贴板');
+      });
+    }
+  </script>
 </body>
+
 </html>

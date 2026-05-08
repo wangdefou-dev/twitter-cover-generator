@@ -1,0 +1,6 @@
+{
+  "name": "cover-generator",
+  "version": "0.1.0",
+  "description": "全媒体封面图生成器 - 通过命令行生成 Twitter/微信/微博/B站等平台封面图",
+  "opencli": ">=1.7.12"
+}
