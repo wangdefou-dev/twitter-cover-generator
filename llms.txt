@@ -3,7 +3,7 @@
 > 免费在线工具，用来生成 X / Twitter 长文（X Article）封面图。输入标题、选择配色，一键导出 2500×1000（5:2）的 PNG。无需登录，所有处理都在浏览器本地完成。
 
 - 网址：https://xcover.defou.ai/
-- 作者：得否（王得否，@wangdefou），https://www.wangdefou.com/
+- 作者：得否（@wangdefou），https://www.wangdefou.com/
 - 出品：得否科技，https://defou.ai/
 
 ## 功能
