@@ -1,0 +1,18 @@
+# 推特封面图生成器（X Cover Generator）
+
+> 免费在线工具，用来生成 X / Twitter 长文（X Article）封面图。输入标题、选择配色，一键导出 2500×1000（5:2）的 PNG。无需登录，所有处理都在浏览器本地完成。
+
+- 网址：https://xcover.defou.ai/
+- 作者：得否（王阳，@wangdefou），https://www.wangdefou.com/
+- 出品：得否科技，https://defou.ai/
+
+## 功能
+
+- 主标题、引导句、署名和背景水印字都可以自定义，高亮字、水印和配色都能一键随机
+- 18 套配色方案，高亮文字颜色可以自动跟随配色
+- 导出 2500×1000 PNG，正好是 X 长文封面的推荐尺寸
+
+## 相关产品
+
+- [MarkX 网页版](https://x.defou.ai/)：把 X 长文和微信公众号文章转成 Markdown
+- [MarkX for Mac](https://markx.defou.ai/)：把 X 长文完整归档到本地
